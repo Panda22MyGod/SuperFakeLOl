@@ -13,14 +13,14 @@ if not LPH_OBFUSCATED then
         return func
     end
     LPH_CRASH = function() return print(debug.traceback()); end;
-    SWG_DiscordUser = "xvi"
+    SWG_DiscordUser = "swim"
     SWG_DiscordID = 1337
     SWG_Private = true
     SWG_Dev = false
-    SWG_Version = "developer panda"
+    SWG_Version = "dev"
     SWG_Title = 'xvisad.xyz'
-    SWG_ShortName = 'panda'
-    SWG_FullName = 'in xvi'
+    SWG_ShortName = 'dev'
+    SWG_FullName = 'indev build'
     SWG_FFA = false
 end;
 
@@ -254,22 +254,24 @@ ui.tabs = {
 }
 
 ui.box = {
-    aimbot_group = ui.tabs.combat:AddRightGroupbox('Aimbot'),
-    silentaim_group = ui.tabs.combat:AddRightGroupbox('Silent'),
-    weapon_visuals = ui.tabs.visuals:AddRightGroupbox('av'),
+    aimbot_group = ui.tabs.combat:AddRightGroupbox('AIMBOT & FOV'),
+    silentaim_group = ui.tabs.combat:AddRightGroupbox('SILENT AIM'),
+    weapon_visuals = ui.tabs.visuals:AddRightGroupbox('WEAPON VISUALS'),
+    esp = ui.tabs.visuals:AddLeftTabbox(),
+    themeconfig = ui.tabs.config:AddLeftGroupbox('Theme Config'),
 
     left_combat  = ui.tabs.combat:AddLeftTabbox(),
     right_combat = ui.tabs.combat:AddRightTabbox(),
 
-    esp           = ui.tabs.visuals:AddLeftTabbox(),
     visuals_right = ui.tabs.visuals:AddRightTabbox(),
 
     left_misc  = ui.tabs.misc:AddLeftTabbox(),
     right_misc = ui.tabs.misc:AddRightTabbox(),
-
-    themeconfig = ui.tabs.config:AddLeftGroupbox('Theme Config'),
 }
 
+-- ============================================================
+--  РАДУГА (только для ESP и FOV круга)
+-- ============================================================
 local rainbow_clock = tick()
 cheat.utility.new_heartbeat(function(delta)
     rainbow_clock = tick()
@@ -280,6 +282,201 @@ local function rainbow_color(offset)
     return Color3.fromHSV(hue, 1, 1)
 end
 cheat.utility.rainbow_color = rainbow_color
+
+-- ============================================================
+--  MULTIPOINT (Project Aurora / 26-point AABB search)
+-- ============================================================
+local MultiPoint = {
+    enabled      = false,
+    debug        = false,
+    debug_points = {},
+    max_debug    = 26,
+}
+
+local mp_params = RaycastParams.new()
+mp_params.FilterType     = Enum.RaycastFilterType.Exclude
+mp_params.IgnoreWater    = true
+mp_params.CollisionGroup = "WeaponRaycast"
+
+local function rayAABB(origin, dir, center, half)
+    local tmin, tmax = -math.huge, math.huge
+    for i = 1, 3 do
+        local o = i == 1 and origin.X or i == 2 and origin.Y or origin.Z
+        local d = i == 1 and dir.X or i == 2 and dir.Y or dir.Z
+        local c = i == 1 and center.X or i == 2 and center.Y or center.Z
+        local h = i == 1 and half.X or i == 2 and half.Y or half.Z
+        if math.abs(d) < 1e-8 then
+            if o < c - h or o > c + h then return nil end
+        else
+            local t1 = (c - h - o) / d
+            local t2 = (c + h - o) / d
+            if t1 > t2 then t1, t2 = t2, t1 end
+            if t1 > tmin then tmin = t1 end
+            if t2 < tmax then tmax = t2 end
+            if tmin > tmax then return nil end
+        end
+    end
+    return tmin, tmax
+end
+
+local function mp_isVisible(origin, point, target_model)
+    mp_params.FilterDescendantsInstances = {
+        LocalPlayer.Character,
+        workspace.Const.Ignore,
+    }
+    local dir = point - origin
+    local res = workspace:Raycast(origin, dir, mp_params)
+    if not res then return true, math.huge end
+    if res.Instance and res.Instance:IsDescendantOf(target_model) then return true, math.huge end
+    return false, res.Distance
+end
+
+function cheat.utility.getMultiPoint(target_part, target_model, origin)
+    if not MultiPoint.enabled or not target_part or not target_model then
+        return target_part and target_part.CFrame.p
+    end
+    origin = origin or Camera.CFrame.p
+
+    local torso = target_model:FindFirstChild("Torso") or target_model:FindFirstChild("HumanoidRootPart")
+    if not torso then return target_part.CFrame.p end
+
+    local center = torso.Position
+    local half   = torso.Size * 0.5
+
+    local dir_to_center = (center - origin)
+    if dir_to_center.Magnitude < 0.001 then return center end
+    local dir_unit = dir_to_center.Unit
+
+    -- сначала центр
+    local center_visible = mp_isVisible(origin, center, target_model)
+    if center_visible then
+        local t_enter = rayAABB(origin, dir_unit, center, half)
+        if t_enter then
+            return origin + dir_unit * t_enter
+        end
+        return center
+    end
+
+    -- перебор 8 углов + 6 граней + 12 рёбер = 26 точек
+    local candidates = {}
+
+    for _, sx in ipairs({-1, 1}) do
+        for _, sy in ipairs({-1, 1}) do
+            for _, sz in ipairs({-1, 1}) do
+                table.insert(candidates, center + Vector3.new(sx * half.X, sy * half.Y, sz * half.Z))
+            end
+        end
+    end
+
+    table.insert(candidates, center + Vector3.new( 0,  half.Y, 0))
+    table.insert(candidates, center + Vector3.new( 0, -half.Y, 0))
+    table.insert(candidates, center + Vector3.new( half.X, 0, 0))
+    table.insert(candidates, center + Vector3.new(-half.X, 0, 0))
+    table.insert(candidates, center + Vector3.new( 0, 0,  half.Z))
+    table.insert(candidates, center + Vector3.new( 0, 0, -half.Z))
+
+    table.insert(candidates, center + Vector3.new( half.X,  half.Y, 0))
+    table.insert(candidates, center + Vector3.new(-half.X,  half.Y, 0))
+    table.insert(candidates, center + Vector3.new( half.X, -half.Y, 0))
+    table.insert(candidates, center + Vector3.new(-half.X, -half.Y, 0))
+    table.insert(candidates, center + Vector3.new( half.X, 0,  half.Z))
+    table.insert(candidates, center + Vector3.new(-half.X, 0,  half.Z))
+    table.insert(candidates, center + Vector3.new( half.X, 0, -half.Z))
+    table.insert(candidates, center + Vector3.new(-half.X, 0, -half.Z))
+    table.insert(candidates, center + Vector3.new( 0,  half.Y,  half.Z))
+    table.insert(candidates, center + Vector3.new( 0,  half.Y, -half.Z))
+    table.insert(candidates, center + Vector3.new( 0, -half.Y,  half.Z))
+    table.insert(candidates, center + Vector3.new( 0, -half.Y, -half.Z))
+
+    local best = nil
+    local best_score = math.huge
+
+    for _, pos in ipairs(candidates) do
+        local visible = mp_isVisible(origin, pos, target_model)
+        if visible then
+            local dist_to_center = (pos - center).Magnitude
+            local dist_to_cam = (pos - origin).Magnitude
+            local score = dist_to_center * 10 + dist_to_cam * 0.01
+            if score < best_score then
+                best_score = score
+                best = pos
+            end
+        end
+    end
+
+    return best or center
+end
+
+-- Debug-визуализация multipoint (все 26 точек)
+cheat.utility.new_renderstepped(function()
+    for _, d in ipairs(MultiPoint.debug_points) do
+        if d and d.Remove then pcall(function() d:Remove() end) end
+    end
+    MultiPoint.debug_points = {}
+
+    if not MultiPoint.enabled or not MultiPoint.debug then return end
+
+    local target_part = modulecomm and modulecomm.target and modulecomm.target[1]
+    local target_entity = modulecomm and modulecomm.target and modulecomm.target[2]
+    if not target_part or not target_entity then return end
+
+    local target_model = rawget(target_entity, "model")
+    if not target_model then return end
+
+    local torso = target_model:FindFirstChild("Torso") or target_model:FindFirstChild("HumanoidRootPart")
+    if not torso then return end
+
+    local origin = Camera.CFrame.p
+    local center = torso.Position
+    local half   = torso.Size * 0.5
+
+    local points = {}
+
+    for _, sx in ipairs({-1, 1}) do
+        for _, sy in ipairs({-1, 1}) do
+            for _, sz in ipairs({-1, 1}) do
+                table.insert(points, center + Vector3.new(sx * half.X, sy * half.Y, sz * half.Z))
+            end
+        end
+    end
+
+    table.insert(points, center + Vector3.new( 0,  half.Y, 0))
+    table.insert(points, center + Vector3.new( 0, -half.Y, 0))
+    table.insert(points, center + Vector3.new( half.X, 0, 0))
+    table.insert(points, center + Vector3.new(-half.X, 0, 0))
+    table.insert(points, center + Vector3.new( 0, 0,  half.Z))
+    table.insert(points, center + Vector3.new( 0, 0, -half.Z))
+
+    for _, pos in ipairs(points) do
+        local screen, on = Camera:WorldToViewportPoint(pos)
+        if on then
+            local visible = mp_isVisible(origin, pos, target_model)
+            local c = Drawing.new("Circle")
+            c.Position = Vector2.new(screen.X, screen.Y)
+            c.Radius = 3
+            c.Filled = true
+            c.Color = visible and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
+            c.Thickness = 1
+            c.Transparency = 0.9
+            c.Visible = true
+            table.insert(MultiPoint.debug_points, c)
+        end
+    end
+
+    local aim_pos = cheat.utility.getMultiPoint(target_part, target_model, origin)
+    local sp, on = Camera:WorldToViewportPoint(aim_pos)
+    if on then
+        local c = Drawing.new("Circle")
+        c.Position = Vector2.new(sp.X, sp.Y)
+        c.Radius = 6
+        c.Filled = false
+        c.Color = Color3.fromRGB(255, 255, 0)
+        c.Thickness = 2
+        c.Transparency = 1
+        c.Visible = true
+        table.insert(MultiPoint.debug_points, c)
+    end
+end)
 
 cheat.EspLibrary = {};
 LPH_NO_VIRTUALIZE(function()
@@ -1175,18 +1372,19 @@ do
            and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
             local target_part = modulecomm.target[1]
             local target_entity = modulecomm.target[2]
+            local target_model = rawget(target_entity, "model")
             local guninfo = trident.guninfo
             local proj_speed = guninfo and rawget(guninfo, "ProjectileSpeed")
             local proj_drop = guninfo and rawget(guninfo, "ProjectileDrop") or 0
             local campos = Camera.CFrame.p
 
-            local aimPos = target_part.CFrame.p
+            local aimPos = cheat.utility.getMultiPoint(target_part, target_model, campos) or target_part.CFrame.p
             if guninfo and proj_speed and proj_drop then
                 local velocity = (rawget(target_entity, "goalPosition") - rawget(target_entity, "startPosition")) / 0.15 * _Vector3new(1, 0, 1)
-                local distance = (campos - target_part.CFrame.p).Magnitude
+                local distance = (campos - aimPos).Magnitude
                 local time_to_hit = distance / proj_speed
-                local predicted = target_part.CFrame.p + (velocity * time_to_hit)
-                local delta = (predicted - target_part.CFrame.p).Magnitude
+                local predicted = aimPos + (velocity * time_to_hit)
+                local delta = (predicted - aimPos).Magnitude
                 time_to_hit = time_to_hit + (delta / proj_speed)
                 aimPos = predicted + Vector3.yAxis * (proj_drop ^ (time_to_hit * proj_drop) - 1)
             end
@@ -1518,6 +1716,7 @@ do
             fovSize       = 150,
             fovColor      = Color3.fromRGB(255, 255, 255),
             fovRainbow    = false,
+            multipoint    = false,
             showSnapLine  = false,
             snapLineColor = Color3.fromRGB(255, 255, 255),
             snapLineThickness = 1.5,
@@ -1673,10 +1872,17 @@ do
                 if aimTarget and currentItem and table.find(VALID_GUNS, currentItem.type) then
                     local ballisticData = Classes[currentItem.type]
                     if ballisticData then
+                        local origin = Camera.CFrame.Position
+                        local target_part = _FindFirstChild(aimTarget, "Head") or _FindFirstChild(aimTarget, "HumanoidRootPart")
+                        local mp_pos = target_part.Position
+                        if SilentAim.Settings.multipoint and target_part then
+                            mp_pos = cheat.utility.getMultiPoint(target_part, aimTarget, origin) or target_part.Position
+                        end
+
                         local finalAimPos, _ = CalculateBallistics(
-                            aimTarget.Head.Position,
+                            mp_pos,
                             targetVel,
-                            Camera.CFrame.Position,
+                            origin,
                             ballisticData.ProjectileSpeed,
                             ballisticData.ProjectileDrop
                         )
@@ -1769,6 +1975,18 @@ do
         Text = "Enable Prediction", Default = false,
         Callback = function(v) SilentAim.Settings.prediction = v end
     })
+    sa_box:AddToggle("sa_MultiPoint", {
+        Text = "Multi-point (aim at closest visible)", Default = false,
+        Tooltip = "Aurora-style: aims at closest visible point on the hitbox",
+        Callback = function(v)
+            SilentAim.Settings.multipoint = v
+            MultiPoint.enabled = v
+        end
+    })
+    sa_box:AddToggle("sa_MultiPoint_Debug", {
+        Text = "Multi-point debug (show points)", Default = false,
+        Callback = function(v) MultiPoint.debug = v end
+    })
     sa_box:AddToggle("sa_SleeperCheck", {
         Text = "Sleeper Check", Default = false,
         Callback = function(v) SilentAim.Settings.sleeperCheck = v end
@@ -1822,7 +2040,6 @@ do
         Default = Color3.fromRGB(255, 255, 255),
         Callback = function(v) SilentAim.Settings.fovColor = v end
     })
-
 
     sa_box:AddToggle("sa_FovFill", {
         Text = "FOV Fill", Default = false,
@@ -2321,7 +2538,6 @@ do
         Gap = 10,
         TheGap = false,
         Font = Drawing.Fonts.System,
-        rainbow = false,
         sussy = false,
         Text = {
             Logo = false,
@@ -2376,10 +2592,6 @@ do
         Text = 'sussy', Default = false,
         Callback = function(first) cursor.sussy = first end
     })
-    CrosshairTab:AddToggle('crosshairenablefaggot', {
-        Text = 'rainbow', Default = false,
-        Callback = function(first) cursor.rainbow = first end
-    })
     CrosshairTab:AddToggle('crosshairtextLogo', {
         Text = 'text logo', Default = false,
         Callback = function(first) cursor.Text.Logo = first end
@@ -2409,7 +2621,7 @@ do
     })
     local logotext = cheat.utility.new_drawing("Text", {
         Visible = false, Font = cursor.Font, Size = 13, Color = Color3.fromRGB(138, 128, 255),
-        ZIndex = 3, Transparency = 1, Text = "swimhub.xyz", Center = true, Outline = true,
+        ZIndex = 3, Transparency = 1, Text = "xvisad.xyz", Center = true, Outline = true,
     })
     local indicatortext = cheat.utility.new_drawing("Text", {
         Visible = false, Font = cursor.Font, Size = 13, Color = Color3.new(1, 1, 1),
@@ -2431,17 +2643,14 @@ do
         lines[i] = { line, line_outline, naziline }
     end
     local angle, transp, reverse = 0, 0, false
-    local pos, rainbow, rotationdegree, color = Vector2.zero, 0, 0, Color3.new()
-    local math_cos, math_atan, math_pi, math_sin = math.cos, math.atan, math.pi, math.sin
+    local pos, rotationdegree, color = Vector2.zero, 0, Color3.new()
+    local math_atan, math_pi, math_sin, math_cos = math.atan, math.pi, math.sin, math.cos
     local function DEG2RAD(x) return x * math_pi / 180 end
     local function RAD2DEG(x) return x * 180 / math_pi end
     cheat.utility.new_renderstepped(LPH_NO_VIRTUALIZE(function(delta)
         if cursor.Enabled then
-            rainbow = rainbow + (delta * 0.5)
-            if rainbow > 1.0 then rainbow = 0.0 end
-            color = Color3.fromHSV(rainbow, 1, 1)
             if cursor.CustomPos then pos = cursor.Position else pos = _Vector2new(Mouse.X, Mouse.Y + GuiInset.Y) end
-            if cursor.rainbow then color = Color3.fromHSV(rainbow, 1, 1) else color = cursor.Color end
+            color = cursor.Color
             if transp <= 1.5 + cursor.Text.LogoFadingOffset and not reverse then
                 transp = transp + (((cursor.Speed == 0 and 1 or cursor.Speed) * 10) * delta)
                 if transp >= 1.5 + cursor.Text.LogoFadingOffset then reverse = true end
@@ -2554,14 +2763,10 @@ do
             color2 = Value
         end
     })
-    watermarktab:AddToggle('watermark_rainbowcolor', {
-        Text = 'rainbow', Default = false,
-        Callback = function(first) dynamic = first end
-    })
     local leftcolor, rightcolor, watertext =
         Color3.new(0, 0.666667, 0.333333),
         Color3.new(0.349020, 0, 1),
-        "swimhub.xyz canary | fps: 63 "
+        "xvisad.xyz | fps: 63 "
     local waterpos = Vector2.new(10, 10);
     local text = cheat.utility.new_drawing("Text", {
         ZIndex = 4, Visible = true, Transparency = 1,
@@ -2588,16 +2793,13 @@ do
         Size = Vector2.new(text.TextBounds.X + 6, text.TextBounds.Y + 6),
         Color = Color3.new(0, 0, 0), Filled = true, Thickness = 1e-20,
     })
-    local hue1, hue2, fpstimer, fps, finalfps = 0, 0.15, tick(), 0, 60;
+    local fpstimer, fps, finalfps = tick(), 0, 60;
     cheat.utility.new_renderstepped(LPH_JIT_MAX(function(delta)
         fps = fps + 1;
         if fpstimer + 1 <= tick() then fpstimer = tick(); finalfps = fps; fps = 0; end;
-        hue1, hue2 = tick() % 1, tick() % 1 + 0.15;
-        if hue1 >= 1 then hue1 = 0 end
-        if hue2 >= 1 then hue2 = 0 end
-        rightcolor = dynamic and Color3.fromHSV(hue1, 1, 1) or color2;
-        leftcolor = dynamic and Color3.fromHSV(hue2, 1, 1) or color1;
-        watertext = ("swimhub %s | %s | %s fps"):format(SWG_Version, SWG_ShortName, tostring(finalfps));
+        rightcolor = color2;
+        leftcolor = color1;
+        watertext = ("xvisad.xyz | %s fps"):format(tostring(finalfps));
         gradr.Color = rightcolor;
         gradl.Color = leftcolor;
         gradbackground.Color = gradr.Color:Lerp(gradl.Color, 0.5);
@@ -2829,7 +3031,6 @@ do
             color      = Color3.fromRGB(0, 120, 255),
             thickness  = 0.1,
             lifetime   = 1.5,
-            rainbow    = false,
         }
     }
 
@@ -2987,18 +3188,22 @@ do
             local distance = (currentPos - lastPos).Magnitude
             if distance > 0.5 and distance < 500 then
                 local tracer = Instance.new("Part")
-                tracer.Anchored = true
-                tracer.CanCollide = false
-                tracer.CanQuery = false
-                tracer.CanTouch = false
-                tracer.Size = Vector3.new(Visuals.Tracers.thickness, Visuals.Tracers.thickness, distance)
+                tracer.Name           = "xvisad_tracer"
+                tracer.Anchored       = true
+                tracer.CanCollide     = false
+                tracer.CanQuery       = false
+                tracer.CanTouch       = false
+                tracer.CastShadow     = false
+                tracer.Massless       = true
+                tracer.Size           = Vector3.new(Visuals.Tracers.thickness, Visuals.Tracers.thickness, distance)
                 pcall(function()
                     tracer.CFrame = CFrame.new(lastPos, currentPos) * CFrame.new(0, 0, -distance/2)
                 end)
-                tracer.Color = Visuals.Tracers.rainbow and cheat.utility.rainbow_color(0) or Visuals.Tracers.color
-                tracer.Material = Enum.Material.Neon
-                tracer.Transparency = 0
-                tracer.Parent = workspace
+                tracer.Color          = Visuals.Tracers.color
+                tracer.Material       = Enum.Material.Neon
+                tracer.Transparency   = 0
+                pcall(function() tracer.CollisionGroup = "xvisad_esp" end)
+                tracer.Parent         = workspace
                 pcall(function()
                     game:GetService("Debris"):AddItem(tracer, Visuals.Tracers.lifetime)
                 end)
@@ -3087,7 +3292,6 @@ do
         Transparency = 0,
         Callback = function(v) Visuals.Tracers.color = v end
     })
-
     VisualsGroup:AddSlider('bullet_tracers_thickness', {
         Text = 'tracer thickness', Default = 0.1, Min = 0.05, Max = 0.5, Rounding = 2, Suffix = 'st',
         Callback = function(v) Visuals.Tracers.thickness = v end
@@ -3098,6 +3302,9 @@ do
     })
 end
 
+-- ============================================================
+--  HITMARKER (привязан к мировой позиции попадания)
+-- ============================================================
 do
     local Hitmarker = {
         enabled      = false,
@@ -3105,18 +3312,17 @@ do
         outlineColor = Color3.fromRGB(0, 0, 0),
         thickness    = 2,
         size         = 12,
-        lifetime     = 0.7,
-        speed        = 180,
-        outline      = true,
+        lifetime     = 0.8,
+        fade         = true,
+        gap          = 3,
         active       = {},
         cache        = {},
     }
 
-    local function createHitmarker(pos2d)
+    local function createHitmarker(world_pos)
         local entry = {
-            born     = tick(),
-            rot      = 0,
-            pos      = pos2d,
+            born  = tick(),
+            world = world_pos,
             lines    = {},
             outlines = {},
         }
@@ -3143,10 +3349,11 @@ do
         table.insert(Hitmarker.active, entry)
     end
 
-    local function updateHitmarkers(delta)
+    local function updateHitmarkers()
+        local now = tick()
         for i = #Hitmarker.active, 1, -1 do
             local hm = Hitmarker.active[i]
-            local elapsed = tick() - hm.born
+            local elapsed = now - hm.born
             local alpha = 1 - (elapsed / Hitmarker.lifetime)
 
             if alpha <= 0 then
@@ -3154,29 +3361,46 @@ do
                 for _, ol in ipairs(hm.outlines) do pcall(function() ol:Remove() end) end
                 table.remove(Hitmarker.active, i)
             else
-                hm.rot = hm.rot + (Hitmarker.speed * delta)
+                -- фиксируем позицию к миру → всегда "привязан" к точке попадания
+                local screenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(hm.world)
 
-                for idx = 1, 4 do
-                    local angle = math.rad(hm.rot + (idx - 1) * 90)
+                if not onScreen then
+                    for _, ln in ipairs(hm.lines) do ln.Visible = false end
+                    for _, ol in ipairs(hm.outlines) do ol.Visible = false end
+                else
+                    local pos = Vector2.new(screenPos.X, screenPos.Y)
                     local size = Hitmarker.size
-                    local x1 = hm.pos.X + math.cos(angle) * (size * 0.4)
-                    local y1 = hm.pos.Y + math.sin(angle) * (size * 0.4)
-                    local x2 = hm.pos.X + math.cos(angle) * size
-                    local y2 = hm.pos.Y + math.sin(angle) * size
+                    local gap  = Hitmarker.gap
 
-                    local ln = hm.lines[idx]
-                    ln.From = Vector2.new(x1, y1)
-                    ln.To   = Vector2.new(x2, y2)
-                    ln.Color = Hitmarker.color
-                    ln.Transparency = alpha
-                    ln.Visible = true
+                    -- 4 диагональные линии
+                    local dirs = {
+                        Vector2.new(-1, -1),
+                        Vector2.new( 1, -1),
+                        Vector2.new(-1,  1),
+                        Vector2.new( 1,  1),
+                    }
 
-                    local ol = hm.outlines[idx]
-                    ol.From = Vector2.new(x1, y1)
-                    ol.To   = Vector2.new(x2, y2)
-                    ol.Color = Hitmarker.outlineColor
-                    ol.Transparency = alpha
-                    ol.Visible = Hitmarker.outline
+                    for idx = 1, 4 do
+                        local d = dirs[idx]
+                        local x1 = pos.X + d.X * gap
+                        local y1 = pos.Y + d.Y * gap
+                        local x2 = pos.X + d.X * (gap + size)
+                        local y2 = pos.Y + d.Y * (gap + size)
+
+                        local ln = hm.lines[idx]
+                        ln.From = Vector2.new(x1, y1)
+                        ln.To   = Vector2.new(x2, y2)
+                        ln.Color = Hitmarker.color
+                        ln.Transparency = alpha
+                        ln.Visible = true
+
+                        local ol = hm.outlines[idx]
+                        ol.From = Vector2.new(x1, y1)
+                        ol.To   = Vector2.new(x2, y2)
+                        ol.Color = Hitmarker.outlineColor
+                        ol.Transparency = alpha
+                        ol.Visible = true
+                    end
                 end
             end
         end
@@ -3213,11 +3437,9 @@ do
             local timeDelta = tick() - lastTick
             lastTick = tick()
 
+            -- пуля остановилась → фиксируем позицию попадания
             if distance < 0.5 and timeDelta > 0.05 then
-                local screenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(currentPos)
-                if onScreen then
-                    createHitmarker(Vector2.new(screenPos.X, screenPos.Y))
-                end
+                createHitmarker(currentPos)
                 if conn then conn:Disconnect() end
                 Hitmarker.cache[proj] = nil
                 return
@@ -3226,6 +3448,23 @@ do
             lastPos = currentPos
         end)
     end
+
+    -- основной канал — FireServer "Hit"
+    local originalNamecallHM
+    originalNamecallHM = hookmetamethod(game, "__namecall", function(self, ...)
+        local method = getnamecallmethod()
+        local args   = {...}
+
+        if method == "FireServer" and (self == LocalPlayer.TCP or self == LocalPlayer.UDP) then
+            if args[1] == 10 and args[2] == "Hit" then
+                if Hitmarker.enabled and typeof(args[8]) == "Vector3" then
+                    createHitmarker(args[8])
+                end
+            end
+        end
+
+        return originalNamecallHM(self, ...)
+    end)
 
     local bulletNames = {"Bullet","BlueBullet","Projectile","Rocket","Missile","Grenade","Arrow"}
     workspace.DescendantAdded:Connect(function(obj)
@@ -3258,11 +3497,6 @@ do
         Callback = function(c) Hitmarker.outlineColor = c end
     })
 
-    HitmarkerTab:AddToggle('hitmarker_outline', {
-        Text = 'show outline', Default = true,
-        Callback = function(v) Hitmarker.outline = v end
-    })
-
     HitmarkerTab:AddSlider('hitmarker_thickness', {
         Text = 'thickness', Default = 2, Min = 1, Max = 8, Rounding = 1, Compact = true,
         Callback = function(v) Hitmarker.thickness = v end
@@ -3273,14 +3507,14 @@ do
         Callback = function(v) Hitmarker.size = v end
     })
 
-    HitmarkerTab:AddSlider('hitmarker_lifetime', {
-        Text = 'lifetime', Default = 0.7, Min = 0.1, Max = 3, Rounding = 2, Suffix = 's', Compact = true,
-        Callback = function(v) Hitmarker.lifetime = v end
+    HitmarkerTab:AddSlider('hitmarker_gap', {
+        Text = 'gap (dist от центра)', Default = 3, Min = 0, Max = 20, Rounding = 0, Compact = true,
+        Callback = function(v) Hitmarker.gap = v end
     })
 
-    HitmarkerTab:AddSlider('hitmarker_speed', {
-        Text = 'spin speed', Default = 180, Min = 0, Max = 720, Rounding = 0, Compact = true,
-        Callback = function(v) Hitmarker.speed = v end
+    HitmarkerTab:AddSlider('hitmarker_lifetime', {
+        Text = 'lifetime', Default = 0.8, Min = 0.1, Max = 3, Rounding = 2, Suffix = 's', Compact = true,
+        Callback = function(v) Hitmarker.lifetime = v end
     })
 end
 
@@ -3887,8 +4121,8 @@ ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({ "keybindshoww" })
-ThemeManager:SetFolder("swimhub")
-SaveManager:SetFolder("swimhub")
+ThemeManager:SetFolder("xvisad")
+SaveManager:SetFolder("xvisad")
 
 ThemeManager:ApplyToGroupbox(ui.box.themeconfig)
 SaveManager:BuildConfigSection(ui.tabs.config)
@@ -3914,245 +4148,4 @@ end)
 
 pcall(function()
     Library.ToggleKeybind = Options.MenuKeybind
-end)
-
-
-
-local Players           = game:GetService("Players")
-local RunService        = game:GetService("RunService")
-local UserInputService  = game:GetService("UserInputService")
-local Workspace         = game:GetService("Workspace")
-
-local LocalPlayer = Players.LocalPlayer
-local Camera      = Workspace.CurrentCamera
-
-
-local Config = {
-    enabled       = true,
-    visible       = false,
-    max_logs      = 8,
-    lifetime      = 6.0,
-    position      = Vector2.new(20, 300),
-    width         = 380,
-    line_height   = 22,
-    font          = Drawing.Fonts.System,
-    title         = "xvisad.xyz",
-    title_color   = Color3.fromRGB(138, 128, 255),
-    bg_color      = Color3.fromRGB(15, 15, 20),
-    bg_alpha      = 0.35,
-    accent_color  = Color3.fromRGB(138, 128, 255),
-    kill_color    = Color3.fromRGB(255, 90, 90),
-    hit_color     = Color3.fromRGB(255, 220, 90),
-    text_color    = Color3.fromRGB(230, 230, 230),
-    time_color    = Color3.fromRGB(140, 140, 150),
-}
-
-local Logs       = {}
-local EntityList = nil
-local KillCache  = {}
-
-local function findEntityList()
-    for _, v in pairs(getgc(true)) do
-        if type(v) == "table" and type(rawget(v, "GetEntityFromPart")) == "function" then
-            return rawget(v, "GetEntityFromPart")
-        end
-    end
-    return nil
-end
-
-task.spawn(function()
-    repeat
-        task.wait(0.5)
-        EntityList = findEntityList()
-    until EntityList
-end)
-
-local function getEntityByID(id)
-    if not EntityList then return nil end
-    local ok, list = pcall(function() return getupvalue(EntityList, 1) end)
-    if not ok or not list then return nil end
-    return list[id]
-end
-
-local function getEntityName(entity)
-    if not entity then return "Unknown" end
-    local name = rawget(entity, "Name")
-    if name and name ~= "" then return name end
-    local t = rawget(entity, "type")
-    return t or "Unknown"
-end
-
-local Drawings = {
-    bg           = Drawing.new("Square"),
-    bg_outline   = Drawing.new("Square"),
-    title        = Drawing.new("Text"),
-    title_line   = Drawing.new("Line"),
-    lines        = {},
-}
-
-local function setupDrawing()
-    Drawings.bg.Filled       = true
-    Drawings.bg.Color        = Config.bg_color
-    Drawings.bg.Transparency = Config.bg_alpha
-    Drawings.bg.ZIndex       = 90
-
-    Drawings.bg_outline.Filled       = false
-    Drawings.bg_outline.Thickness    = 1
-    Drawings.bg_outline.Color        = Config.accent_color
-    Drawings.bg_outline.Transparency = 0.7
-    Drawings.bg_outline.ZIndex       = 91
-
-    Drawings.title.Center       = false
-    Drawings.title.Outline      = true
-    Drawings.title.OutlineColor = Color3.new(0, 0, 0)
-    Drawings.title.Font         = Config.font
-    Drawings.title.Size         = 14
-    Drawings.title.Color        = Config.title_color
-    Drawings.title.Text         = Config.title
-    Drawings.title.ZIndex       = 92
-
-    Drawings.title_line.Thickness    = 1
-    Drawings.title_line.Color        = Config.accent_color
-    Drawings.title_line.Transparency = 0.4
-    Drawings.title_line.ZIndex       = 92
-end
-setupDrawing()
-
-local function ensureLine(idx)
-    if Drawings.lines[idx] then return Drawings.lines[idx] end
-    local t = Drawing.new("Text")
-    t.Center       = false
-    t.Outline      = true
-    t.OutlineColor = Color3.new(0, 0, 0)
-    t.Font         = Config.font
-    t.Size         = 13
-    t.ZIndex       = 93
-    Drawings.lines[idx] = t
-    return t
-end
-
-local function addLog(text, color)
-    table.insert(Logs, 1, {
-        text  = text,
-        color = color or Config.text_color,
-        born  = tick(),
-    })
-    while #Logs > Config.max_logs do
-        table.remove(Logs)
-    end
-end
-
-
-local function render()
-    local now = tick()
-    for i = #Logs, 1, -1 do
-        if now - Logs[i].born > Config.lifetime then
-            table.remove(Logs, i)
-        end
-    end
-
-    local pos = Config.position
-    local w   = Config.width
-
-    if not Config.visible or not Config.enabled or #Logs == 0 then
-        Drawings.bg.Visible         = false
-        Drawings.bg_outline.Visible = false
-        Drawings.title.Visible      = false
-        Drawings.title_line.Visible = false
-        for _, ln in pairs(Drawings.lines) do ln.Visible = false end
-        return
-    end
-
-    local title_h = 26
-    local total_h = title_h + (#Logs * Config.line_height) + 6
-
-    Drawings.bg.Position         = pos
-    Drawings.bg.Size             = Vector2.new(w, total_h)
-    Drawings.bg.Visible          = true
-
-    Drawings.bg_outline.Position = pos
-    Drawings.bg_outline.Size     = Vector2.new(w, total_h)
-    Drawings.bg_outline.Visible  = true
-
-    Drawings.title.Position = pos + Vector2.new(10, 6)
-    Drawings.title.Text     = Config.title .. "  " .. os.date("%H:%M:%S")
-    Drawings.title.Visible  = true
-
-    Drawings.title_line.From    = pos + Vector2.new(6, title_h - 2)
-    Drawings.title_line.To      = pos + Vector2.new(w - 6, title_h - 2)
-    Drawings.title_line.Visible = true
-
-    for i = 1, Config.max_logs do
-        local t   = ensureLine(i)
-        local log = Logs[i]
-        if log then
-            local age   = now - log.born
-            local fade  = math.clamp(1 - (age / Config.lifetime), 0, 1)
-            local alpha = math.min(age / 0.2, 1) * fade
-            if alpha <= 0.01 then
-                t.Visible = false
-            else
-                t.Text         = string.format("[%s] %s", os.date("%H:%M:%S", math.floor(log.born)), log.text)
-                t.Position     = pos + Vector2.new(10, title_h + ((i - 1) * Config.line_height) + 2)
-                t.Color        = log.color
-                t.Transparency = alpha
-                t.Visible      = true
-            end
-        else
-            t.Visible = false
-        end
-    end
-end
-
-RunService.RenderStepped:Connect(function() pcall(render) end)
-
-
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    if input.KeyCode == Enum.KeyCode.F9 then
-        Config.visible = not Config.visible
-    end
-end)
-
-
-local originalNamecall
-originalNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args   = {...}
-
-    if method == "FireServer" and (self == LocalPlayer.TCP or self == LocalPlayer.UDP) then
-        if args[1] == 10 and args[2] == "Hit" then
-            local entity_id = args[5]
-            local part_name = args[6]
-
-            if type(entity_id) == "number" then
-                local entity = getEntityByID(entity_id)
-                local name   = getEntityName(entity)
-                local is_head = part_name == "Head"
-
-                local tag = is_head and "HEADSHOT" or "HIT"
-                addLog(string.format("> %s %s", tag, name), Config.hit_color)
-
-                task.spawn(function()
-                    if KillCache[entity_id] then return end
-                    KillCache[entity_id] = true
-                    task.wait(0.3)
-                    local still = getEntityByID(entity_id)
-                    if still and rawget(still, "sleeping") ~= true then
-                        task.wait(0.4)
-                        local still2 = getEntityByID(entity_id)
-                        if still2 and rawget(still2, "sleeping") ~= true then
-                            KillCache[entity_id] = nil
-                            return
-                        end
-                    end
-
-                    addLog(string.format("+ Killed %s%s", name, is_head and " (HS)" or ""), Config.kill_color)
-                    KillCache[entity_id] = nil
-                end)
-            end
-        end
-    end
-
-    return originalNamecall(self, ...)
 end)
