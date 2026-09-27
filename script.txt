@@ -254,9 +254,9 @@ ui.tabs = {
 }
 
 ui.box = {
-    aimbot_group = ui.tabs.combat:AddRightGroupbox('AIMBOT & FOV'),
-    silentaim_group = ui.tabs.combat:AddRightGroupbox('SILENT AIM'),
-    weapon_visuals = ui.tabs.visuals:AddRightGroupbox('WEAPON VISUALS'),
+    aimbot_group = ui.tabs.combat:AddRightGroupbox('Aimbot :P'),
+    silentaim_group = ui.tabs.combat:AddRightGroupbox('Silent'),
+    weapon_visuals = ui.tabs.visuals:AddRightGroupbox('AV'),
     esp = ui.tabs.visuals:AddLeftTabbox(),
     themeconfig = ui.tabs.config:AddLeftGroupbox('Theme Config'),
 
@@ -269,9 +269,6 @@ ui.box = {
     right_misc = ui.tabs.misc:AddRightTabbox(),
 }
 
--- ============================================================
---  РАДУГА (только для ESP и FOV круга)
--- ============================================================
 local rainbow_clock = tick()
 cheat.utility.new_heartbeat(function(delta)
     rainbow_clock = tick()
@@ -283,9 +280,6 @@ local function rainbow_color(offset)
 end
 cheat.utility.rainbow_color = rainbow_color
 
--- ============================================================
---  MULTIPOINT (Project Aurora / 26-point AABB search)
--- ============================================================
 local MultiPoint = {
     enabled      = false,
     debug        = false,
@@ -347,7 +341,6 @@ function cheat.utility.getMultiPoint(target_part, target_model, origin)
     if dir_to_center.Magnitude < 0.001 then return center end
     local dir_unit = dir_to_center.Unit
 
-    -- сначала центр
     local center_visible = mp_isVisible(origin, center, target_model)
     if center_visible then
         local t_enter = rayAABB(origin, dir_unit, center, half)
@@ -357,7 +350,6 @@ function cheat.utility.getMultiPoint(target_part, target_model, origin)
         return center
     end
 
-    -- перебор 8 углов + 6 граней + 12 рёбер = 26 точек
     local candidates = {}
 
     for _, sx in ipairs({-1, 1}) do
@@ -407,7 +399,6 @@ function cheat.utility.getMultiPoint(target_part, target_model, origin)
     return best or center
 end
 
--- Debug-визуализация multipoint (все 26 точек)
 cheat.utility.new_renderstepped(function()
     for _, d in ipairs(MultiPoint.debug_points) do
         if d and d.Remove then pcall(function() d:Remove() end) end
@@ -1104,37 +1095,37 @@ salobox:AddDropdown('aim_part', {
     Text = 'aim part',
     Values = {"Head","HumanoidRootPart","Torso","Left Arm","Right Arm","Left Leg","Right Leg"},
     Default = 1, Multi = false,
-    Tooltip = 'Select the body part to aim at',
+    Tooltip = 'lol',
     Callback = function(v) modulecomm.part = v end
 })
 salobox:AddToggle('aimbot_enabled', {
     Text = 'aimbot', Default = false,
-    Tooltip = 'Enables the aimbot',
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.enabled = first end
 })
 salobox:AddToggle('aimbot_resolver', {
     Text = 'resolver', Default = false,
-    Tooltip = 'correct enemy antiaim spinbot etc',
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.resolver = first end
 })
 salobox:AddToggle('aimbot_camera', {
     Text = 'camera (mb2)', Default = false,
-    Tooltip = 'Aims using camera direction when holding MB2',
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.camera = first end
 })
 salobox:AddToggle('aimbot_silent', {
     Text = 'silent', Default = false,
-    Tooltip = 'Silent aim without moving the camera',
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.silent = first end
 })
 salobox:AddToggle('aimbot_indicator', {
     Text = 'indicator (crosshair needed)', Default = false,
-    Tooltip = 'Shows an indicator when visible or aimbot is active',
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.indicator = first end
 })
 salobox:AddToggle('aimbot_snaplines', {
-    Text = 'snaplines a bit broken', Default = false,
-    Tooltip = 'Shows snaplines',
+    Text = 'snaplines', Default = false,
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.snaplines = first end
 }):AddColorPicker('aimbot_snaplines_color', {
     Default = Color3.new(1, 1, 1),
@@ -1146,28 +1137,28 @@ salobox:AddDropdown('aimbot_snaplines_from', {
     Text = 'snapline origin',
     Default = 1,
     Values = {'center','mouse','bottom'},
-    Tooltip = 'Where snapline starts',
+    Tooltip = 'fuck you',
     Callback = function(choice) modulecomm.snaplines_from = choice end
 })
 salobox:AddToggle('aimbot_sleep_check', {
     Text = 'sleeper check', Default = false,
-    Tooltip = 'Ignores sleeping players',
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.sleep_check = first end
 })
 salobox:AddToggle('aimbot_team_check', {
     Text = 'team check', Default = false,
-    Tooltip = 'Ignores teammates',
+    Tooltip = 'fuck you',
     Callback = function(first) modulecomm.team_check = first end
 })
 salobox:AddToggle('aimbot_fov', {
     Text = 'use fov', Default = false,
-    Tooltip = 'Limits aimbot to a specific field of view',
+    Tooltip = 'fuck you',
     Callback = function(Value) modulecomm.fov = Value end
 })
 
 salobox:AddToggle('aimbot_fov_show', {
     Text = 'show fov', Default = false,
-    Tooltip = 'Displays the aimbot FOV circle',
+    Tooltip = 'fuck youe',
     Callback = function(Value) modulecomm.fov_show = Value end
 }):AddColorPicker('aimbot_fov_color', {
     Default = Color3.new(1, 1, 1),
@@ -1178,28 +1169,28 @@ salobox:AddToggle('aimbot_fov_show', {
 
 salobox:AddToggle('aimbot_fov_rainbow', {
     Text = 'fov rainbow', Default = false,
-    Tooltip = 'Rainbow FOV circle',
+    Tooltip = 'fuck you',
     Callback = function(Value) modulecomm.fov_rainbow = Value end
 })
 
 salobox:AddToggle('aimbot_fov_outline', {
     Text = 'fov outline', Default = false,
-    Tooltip = 'Adds an outline to the FOV circle',
+    Tooltip = 'fuck youe',
     Callback = function(Value) modulecomm.fov_outline = Value end
 })
 
 salobox:AddSlider('aimbot_fov_size', {
     Text = 'target fov', Default = 100, Min = 10, Max = 1000, Rounding = 0, Compact = true,
-    Tooltip = 'Adjusts the size of the aimbot FOV',
+    Tooltip = 'fuck you',
     Callback = function(State) modulecomm.fov_size = State end
 })
 
 local autofire_enabled = false
 local autofire_connection = nil
 local mouse1_down = false
-salobox:AddToggle('aimbot_autofire', {
-    Text = 'autofire', Default = false,
-    Tooltip = 'Automatically holds left mouse button when target is visible',
+salobox:AddToggle('aimbot_NOCLICK', {
+    Text = 'dont use', Default = false,
+    Tooltip = 'fuck you',
     Callback = function(first)
         autofire_enabled = first
         if autofire_enabled then
@@ -1597,14 +1588,14 @@ do
     })
     gunmodbox:AddToggle('gunmods_jumpshoot', {
         Text = 'jump shoot', Default = false,
-        Tooltip = 'Allows shooting while jumping',
+        Tooltip = 'fuck you',
         Callback = function(first) modulecomm.jumpshoot = first end
     })
 
     local originalAutoShootValues = {}
     gunmodbox:AddToggle('gunmods_autoshoot', {
         Text = 'auto shoot', Default = false,
-        Tooltip = 'Enables auto shoot',
+        Tooltip = 'fuck you',
         Callback = function(first)
             for i, v in pairs(getgc(true)) do
                 if type(v) == "table" and rawget(v, "Damage") then
@@ -1638,7 +1629,7 @@ do
     local originalSpreadValues = {}
     gunmodbox:AddToggle('gunmods_nospread', {
         Text = 'no spread', Default = false,
-        Tooltip = 'Removes spread',
+        Tooltip = 'fuck you',
         Callback = function(first)
             for i, v in pairs(getgc(true)) do
                 if type(v) == "table" and rawget(v, "Damage") then
@@ -1669,7 +1660,7 @@ do
 
     gunmodbox:AddToggle('gunmods_noslowdown', {
         Text = 'no slowdown', Default = false,
-        Tooltip = 'Removes movement slowdown while shooting or aiming',
+        Tooltip = 'fuck you',
         Callback = function(first) modulecomm.noslowdown = first end
     })
     gunmodbox:AddToggle('gunmods_forcehead', {
@@ -1976,15 +1967,15 @@ do
         Callback = function(v) SilentAim.Settings.prediction = v end
     })
     sa_box:AddToggle("sa_MultiPoint", {
-        Text = "Multi-point (aim at closest visible)", Default = false,
-        Tooltip = "Aurora-style: aims at closest visible point on the hitbox",
+        Text = "Multi-point(idk no work)", Default = false,
+        Tooltip = "fuck you",
         Callback = function(v)
             SilentAim.Settings.multipoint = v
             MultiPoint.enabled = v
         end
     })
     sa_box:AddToggle("sa_MultiPoint_Debug", {
-        Text = "Multi-point debug (show points)", Default = false,
+        Text = "Multi-point debug (idk no work)", Default = false,
         Callback = function(v) MultiPoint.debug = v end
     })
     sa_box:AddToggle("sa_SleeperCheck", {
@@ -2209,14 +2200,14 @@ do
     local mvb = ui.box.left_misc:AddTab('exploits')
     local desyncToggle = mvb:AddToggle('desync_enabled', {
         Text = 'desync enabled', Default = false,
-        Tooltip = 'Desync works best in jump — breaks prediction.',
+        Tooltip = 'fuck you',
         Callback = function(first) modulecomm.invis = first end
     })
     desyncToggle:AddKeyPicker('desyncbind', {Default = 'None', SyncToggleState = true, Mode = 'Toggle', Text = 'desync', NoUI = false})
 
     local semiToggle = mvb:AddToggle('seminoclip_enabled', {
         Text = 'seminoclip enabled', Default = false,
-        Tooltip = 'semi noclip?',
+        Tooltip = 'fuck you',
         Callback = function(first) modulecomm.seminoclip = first end
     })
     semiToggle:AddKeyPicker('seminoclipbind', {Default = 'None', SyncToggleState = true, Mode = 'Toggle', Text = 'seminoclip', NoUI = false})
@@ -3302,9 +3293,6 @@ do
     })
 end
 
--- ============================================================
---  HITMARKER (привязан к мировой позиции попадания)
--- ============================================================
 do
     local Hitmarker = {
         enabled      = false,
@@ -3361,7 +3349,6 @@ do
                 for _, ol in ipairs(hm.outlines) do pcall(function() ol:Remove() end) end
                 table.remove(Hitmarker.active, i)
             else
-                -- фиксируем позицию к миру → всегда "привязан" к точке попадания
                 local screenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(hm.world)
 
                 if not onScreen then
@@ -3372,7 +3359,6 @@ do
                     local size = Hitmarker.size
                     local gap  = Hitmarker.gap
 
-                    -- 4 диагональные линии
                     local dirs = {
                         Vector2.new(-1, -1),
                         Vector2.new( 1, -1),
@@ -3437,7 +3423,6 @@ do
             local timeDelta = tick() - lastTick
             lastTick = tick()
 
-            -- пуля остановилась → фиксируем позицию попадания
             if distance < 0.5 and timeDelta > 0.05 then
                 createHitmarker(currentPos)
                 if conn then conn:Disconnect() end
@@ -3449,7 +3434,6 @@ do
         end)
     end
 
-    -- основной канал — FireServer "Hit"
     local originalNamecallHM
     originalNamecallHM = hookmetamethod(game, "__namecall", function(self, ...)
         local method = getnamecallmethod()
@@ -3652,10 +3636,10 @@ do
         end
     end
 
-    local ShouldersTab = ui.box.right_misc:AddTab("shoulders")
+    local ShouldersTab = ui.box.right_misc:AddTab("none..")
 
-    ShouldersTab:AddToggle('shoulders_enabled', {
-        Text = 'show shoulders', Default = false,
+    ShouldersTab:AddToggle('102/123/4124', {
+        Text = 'show penis', Default = false,
         Callback = function(v)
             Shoulders.enabled = v
             if v then
@@ -3666,7 +3650,7 @@ do
         end
     })
 
-    ShouldersTab:AddSlider('shoulders_size', {
+    ShouldersTab:AddSlider('penis_size', {
         Text = 'size multiplier', Default = 1, Min = 0.5, Max = 3, Rounding = 2, Compact = true,
         Callback = function(v)
             local parts = findShoulderParts()
