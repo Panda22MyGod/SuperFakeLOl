@@ -238,6 +238,7 @@ local ui = {
     window = Library:CreateWindow({
         Title = string.format(SWG_Title, SWG_Version, SWG_FullName),
         Footer = "xvisad.xyz " .. SWG_Version,
+        Icon = 18820535797,
         NotifySide = "Right",
         ShowCustomCursor = true,
         Center = true,
